@@ -1,0 +1,85 @@
+---
+title: "STAA 566 HW2"
+author: "Claudia Santillan-Lensink"
+date: "2/14/2022"
+output: html_document
+knit: (function(input_file, encoding) {
+  out_dir <- 'docs';
+  rmarkdown::render(input_file,
+  encoding=encoding,
+  output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(tidyverse)
+library(ggthemes)
+library(viridisLite)
+library(viridis)
+library(dygraphs)
+library(xts)
+library(lubridate)
+```
+# Bechdel Score Trends from 1900-2021
+
+This project was completed using a data set of films from 1874 through 2021 with their Bechdel score rating. The Bechdel test, popularized by Alison Bechdel, has a 0-3 rating system. 
+
+A film gets a 1 if it has at least two female characters in it. A film gets a 2 if they speak to each other. The film gets a 3 if they talk to each other about something besides a man. Otherwise, the film gets a 0. "Passing" the Bechdel test requires a score of 3.
+
+The data for this project came from https://www.kaggle.com/alisonyao/movie-bechdel-test-scores which utilized scores from https://bechdeltest.com/
+
+## Read in data and filter out films prior to 1900
+```{r readindata}
+bechdel <- read.csv("Bechdel.csv")
+head(bechdel)
+# exclude films prior to 1900
+bechdel <- bechdel %>% filter(year > 1899)
+#head(bechdel)
+bechdel$year <- (as.Date(as.character(bechdel$year), "%Y")) #formatting for xts object compatibility
+#head(bechdel)
+```
+
+## Summarize and create xts object with summary data by year
+
+```{r summarize}
+bechdel_pm <- bechdel %>%
+  group_by(year) %>%
+  summarise(Mean = mean(rating),
+            Median = median(rating),
+            Lower = mean(rating)-sd(rating),
+            Upper = mean(rating)+sd(rating),
+            Pass = sum(rating == 3),
+            Total = sum(rating >= 0),
+            Pass_percent = Pass / Total)
+  
+#bechdel_pm
+
+bechdel_pm_xts <- xts::xts(x = bechdel_pm %>% select(Mean, Lower, Upper, Pass_percent), order.by = bechdel_pm$year)
+
+
+```
+
+## Graph score trend line
+
+```{r graph}
+p_bechdel_dyg <- dygraph(bechdel_pm_xts, main = "Average Bechdel Score for Films from 1900-2021") %>%
+  dyAxis("x", drawGrid = FALSE) %>%
+  dyAxis("y", label = "Average Bechdel Score") %>%
+  dyAxis("y2", label = "Percent Pass", independentTicks = TRUE) %>%
+  dySeries(c("Lower","Mean", "Upper"),
+           label = "Mean",
+           color = "green",
+           axis = "y") %>%
+  dySeries("Pass_percent",
+           label = "Pass Percent",
+           color = "purple",
+           pointSize = NULL,
+           strokeWidth =.25,
+           axis = "y2")%>% 
+
+  dyRangeSelector()
+
+p_bechdel_dyg
+```
+
